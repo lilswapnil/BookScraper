@@ -6,7 +6,7 @@ A web scraping project built with Scrapy.
 
 1.  **Clone the repository**
     ```sh
-    git clone <your-repository-url>
+    git clone https://github.com/lilswapnil/BookScraper.git
     cd bookscraper
     ```
 
