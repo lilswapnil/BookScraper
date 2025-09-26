@@ -29,7 +29,7 @@ A web scraping project built with Scrapy.
 
 ## Example: Scraping `books.toscrape.com`
 
-This guide walks through the process of creating a spider that extracts book information from all pages of [books.toscrape.com](http://books.toscrape.com/).
+This guide walks through the process of creating a spider that extracts detailed book information by first crawling the catalogue and then following the link for each book.
 
 ### 1. Create the Spider
 
@@ -43,38 +43,39 @@ This creates `bookscraper/spiders/bookspider.py`.
 
 ### 2. Find CSS Selectors with Scrapy Shell
 
-Use the Scrapy shell to inspect the website and find the correct selectors for the data you want.
+Use the Scrapy shell to find the correct selectors. First, find the links on the main page, then enter a book's detail page to find the selectors for the data you want.
 
 ```sh
+# Start the shell on the main page
 scrapy shell 'http://books.toscrape.com/'
-```
-
-Inside the shell, run these commands to test selectors:
-
-```python
-# Select all book containers
->>> books = response.css('article.product_pod')
-
-# Get the title of the first book
->>> books[0].css('h3 a::text').get()
-'A Light in the ...'
-
-# Get the price of the first book
->>> books[0].css('p.price_color::text').get()
-'£51.77'
-
-# Get the relative URL of the first book
->>> books[0].css('h3 a').attrib['href']
-'catalogue/a-light-in-the-attic_1000/index.html'
 
 # Find the link to the next page
->>> response.css('li.next a').attrib['href']
+>>> response.css('li.next a::attr(href)').get()
 'catalogue/page-2.html'
+
+# Find the link to the first book
+>>> response.css('article.product_pod h3 a::attr(href)').get()
+'catalogue/a-light-in-the-attic_1000/index.html'
+
+# Now, let's inspect a book's detail page
+>>> fetch('http://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html')
+
+# Get the book title from the detail page
+>>> response.css('.product_main h1::text').get()
+'A Light in the Attic'
+
+# Get the book category
+>>> response.xpath("//ul[@class='breadcrumb']/li[@class='active']/preceding-sibling::li[1]/a/text()").get()
+'Poetry'
+
+# Get the product description
+>>> response.xpath("//div[@id='product_description']/following-sibling::p/text()").get()
+'...some of the most brilliant and funny poems...'
 ```
 
 ### 3. Write the Spider Logic
 
-Now, update `bookscraper/spiders/bookspider.py` with the logic to extract data and follow pagination links.
+Update `bookscraper/spiders/bookspider.py` with a two-step process. The `parse` method will handle catalogue pages and pagination, while the `parse_book_page` method will extract data from each book's detail page.
 
 ```python
 # filepath: bookscraper/spiders/bookspider.py
@@ -86,33 +87,52 @@ class BookspiderSpider(scrapy.Spider):
     start_urls = ['http://books.toscrape.com/']
 
     def parse(self, response):
-        # Select each book's container
+        # Find all book containers on the current page.
         books = response.css('article.product_pod')
 
-        # Loop through each book and extract data
+        # For each book, follow the link to its detail page.
         for book in books:
-            yield {
-                'title': book.css('h3 a::attr(title)').get(),
-                'price': book.css('p.price_color::text').get(),
-                'url': response.urljoin(book.css('h3 a').attrib['href']),
-            }
+            relative_url = book.css('h3 a::attr(href)').get()
+            # Use response.follow to handle relative URLs and schedule the request.
+            # The callback specifies which method will parse the book's page.
+            yield response.follow(relative_url, callback=self.parse_book_page)
 
-        # Find the "next" page link and follow it
-        next_page = response.css('li.next a ::attr(href)').get()
+        # Find the link to the next page of listings.
+        next_page = response.css('li.next a::attr(href)').get()
+
+        # If a next page exists, follow it and use this same parse method as the callback.
         if next_page is not None:
-            next_page_url = response.urljoin(next_page)
-            yield response.follow(next_page_url, callback=self.parse)
+            yield response.follow(next_page, callback=self.parse)
+
+    # This method parses the individual book pages.
+    def parse_book_page(self, response):
+        table_rows = response.css('table tr')
+        # Yield a dictionary containing all the extracted book details.
+        yield {
+            'url': response.url,
+            'title': response.css('.product_main h1::text').get(),
+            'product_type': table_rows[1].css('td::text').get(),
+            'price_excl_tax': table_rows[2].css('td::text').get(),
+            'price_incl_tax': table_rows[3].css('td::text').get(),
+            'tax': table_rows[4].css('td::text').get(),
+            'availability': table_rows[5].css('td::text').get(),
+            'number_of_reviews': table_rows[6].css('td::text').get(),
+            'stars': response.css('p.star-rating').attrib['class'],
+            'category': response.xpath("//ul[@class='breadcrumb']/li[@class='active']/preceding-sibling::li[1]/a/text()").get(),
+            'description': response.xpath("//div[@id='product_description']/following-sibling::p/text()").get(),
+            'price': response.css('p.price_color::text').get()
+        }
 ```
 
 ### 4. Run the Spider and Save Data
 
-Execute the spider using the `crawl` command. Use the `-o` flag to save the output to a file (e.g., `books.json`).
+Execute the spider using the `crawl` command. Use the `-o` flag to save the detailed output to a file (e.g., `bookdata.csv`).
 
 ```sh
-scrapy crawl bookspider -o books.json
+scrapy crawl bookspider -o bookdata.csv
 ```
 
-This will run the spider, starting from the `start_urls`, extract the data from each book, follow the "next" page link until there are no more pages, and save all the results into a `books.json` file.
+This will run the spider, collecting detailed information from every book across all pages and saving the results into a `bookdata.csv` file.
 
 ## Troubleshooting
 
