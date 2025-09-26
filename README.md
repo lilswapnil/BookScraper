@@ -1,4 +1,4 @@
-# BookScraper
+# 🕷️📚 BookScraper
 
 A web scraping project built with Scrapy.
 
