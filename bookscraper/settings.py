@@ -44,15 +44,15 @@ ROBOTSTXT_OBEY = True
 
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
-#SPIDER_MIDDLEWARES = {
-#    'bookscraper.middlewares.BookscraperSpiderMiddleware': 543,
-#}
+SPIDER_MIDDLEWARES = {
+   'bookscraper.middlewares.BookscraperSpiderMiddleware': 543,
+}
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
-#    'bookscraper.middlewares.BookscraperDownloaderMiddleware': 543,
-#}
+DOWNLOADER_MIDDLEWARES = {
+   'bookscraper.middlewares.BookscraperDownloaderMiddleware': 543,
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -86,3 +86,12 @@ ROBOTSTXT_OBEY = True
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+
+PROXY_USER = 'username'
+PROXY_PASSWORD = 'password'
+PROXY_ENDPOINT = 'proxy.proxyprovider.com'
+PROXY_PORT = '8000'
+
+# DOWNLOADER_MIDDLEWARES = { 
+#     'myproject.middlewares.MyProxyMiddleware': 350, 
+# }
