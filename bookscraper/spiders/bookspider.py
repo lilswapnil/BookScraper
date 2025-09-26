@@ -5,24 +5,20 @@ class BookspiderSpider(scrapy.Spider):
     allowed_domains = ['books.toscrape.com']
     start_urls = ['http://books.toscrape.com/']
 
-    # This method is Scrapy's main callback for processing downloaded pages.
     def parse(self, response):
-        # Find all book containers on the current page.
         books = response.css('article.product_pod')
 
-        # Extract data from each book and yield it as a dictionary.
         for book in books:
-            yield{
-                'title': book.css('h3 a::text').get(),
-                'price': book.css('p.price_color::text').get(),
-                'url': book.css('h3 a').attrib['href'],
-            }
+            relative_url = book.css('h3 a::attr(href)').get()
 
-        # Find the link to the next page.
+            if 'catalogue/' in relative_url:
+                book_url = 'http://books.toscrape.com/' + relative_url
+            else:
+                book_url = 'http://books.toscrape.com/catalogue/' + relative_url
+            yield response.follow(book_url, callback=self.parse_book_page)
+
         next_page = response.css('li.next a::attr(href)').get()
 
-        # If a next page exists, create a new request to follow it,
-        # and set this same method as the callback to process that page.
         if next_page is not None:
             # The site has inconsistent relative URLs, this logic handles both cases.
             if 'catalogue/' in next_page:
@@ -30,3 +26,21 @@ class BookspiderSpider(scrapy.Spider):
             else:
                 next_page_url = 'http://books.toscrape.com/catalogue/' + next_page
             yield response.follow(next_page_url, callback=self.parse)
+
+    def parse_book_page(self, response):
+        table_rows = response.css('table tr')
+
+        yield {
+            'url' : response.url,
+            'title' : response.css('.product_main h1::text').get(),
+            'product_type' : table_rows[1].css('td::text').get(),
+            'price_excl_tax' : table_rows[2].css('td::text').get(),
+            'price_incl_tax' : table_rows[3].css('td::text').get(),
+            'tax' : table_rows[4].css('td::text').get(),
+            'availability' : table_rows[5].css('td::text').get(),
+            'number_of_reviews' : table_rows[6].css('td::text').get(),
+            'stars' : response.css('p.star-rating').attrib['class'],
+            'category' : response.xpath("//ul[@class='breadcrumb']/li[@class='active']/preceding-sibling::li[1]/a/text()").get(),
+            'description' : response.xpath("//div[@id='product_description']/following-sibling::p/text()").get(),
+            'price' : response.css('p.price_color::text').get()
+        }
